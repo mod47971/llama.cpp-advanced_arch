@@ -2352,6 +2352,42 @@ struct clip_model_loader {
                     vision_model.mm_model_mlp_1_w = get_tensor(string_format(TN_MVLM_PROJ_MLP, 1, "weight"));
                     vision_model.mm_model_mlp_2_w = get_tensor(string_format(TN_MVLM_PROJ_MLP, 2, "weight"));
                 } break;
+            case PROJECTOR_TYPE_STARVECTOR:
+                {
+                    // ViT-энкодер StarVector: основные эмбеддинги
+                    vision_model.class_embedding = get_tensor("model.image_encoder.visual_encoder.class_embedding");
+                    vision_model.patch_embeddings_0 = get_tensor("model.image_encoder.visual_encoder.patch_embedding.weight");
+                    vision_model.position_embeddings = get_tensor("model.image_encoder.visual_encoder.positional_embedding");
+                    vision_model.pre_ln_w = get_tensor("model.image_encoder.visual_encoder.ln_pre.weight");
+                    vision_model.pre_ln_b = get_tensor("model.image_encoder.visual_encoder.ln_pre.bias");
+                    // Слои ViT (attention/ffn/ln)
+                    vision_model.layers.clear();
+                    for (int i = 0; i < hparams.n_layer; ++i) {
+                        clip_layer layer;
+                        // LayerNorm1
+                        layer.ln_1_w = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.ln_1.weight", i));
+                        layer.ln_1_b = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.ln_1.bias", i));
+                        // Attention
+                        layer.q_w = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.attn.in_proj_weight", i));
+                        layer.q_b = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.attn.in_proj_bias", i));
+                        layer.o_w = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.attn.out_proj.weight", i));
+                        layer.o_b = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.attn.out_proj.bias", i));
+                        // LayerNorm2
+                        layer.ln_2_w = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.ln_2.weight", i));
+                        layer.ln_2_b = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.ln_2.bias", i));
+                        // FFN
+                        layer.ff_up_w = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.mlp.c_fc.weight", i));
+                        layer.ff_up_b = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.mlp.c_fc.bias", i));
+                        layer.ff_down_w = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.mlp.c_proj.weight", i));
+                        layer.ff_down_b = get_tensor(string_format("model.image_encoder.visual_encoder.transformer.resblocks.%d.mlp.c_proj.bias", i));
+                        vision_model.layers.push_back(layer);
+                    }
+                    // post-layernorm
+                    vision_model.post_ln_w = get_tensor("model.image_encoder.visual_encoder.transformer.ln_post.weight");
+                    vision_model.post_ln_b = get_tensor("model.image_encoder.visual_encoder.transformer.ln_post.bias");
+                    // Adapter/MLP-head (если есть)
+                    vision_model.projection = get_tensor("model.image_encoder.visual_encoder.adapter.weight", false); // опционально
+                } break;
             default:
                 GGML_ASSERT(false && "unknown projector type");
         }

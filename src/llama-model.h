@@ -423,3 +423,36 @@ const char * llm_type_name(llm_type type);
 // For internal test use
 // TODO: remove
 const std::vector<std::pair<std::string, ggml_tensor *>> & llama_internal_get_tensor_map(const llama_model * model);
+
+// Структура для StarVector
+struct starvector_model {
+    // SVG-трансформер
+    std::vector<ggml_tensor *> svg_attn_weights;
+    std::vector<ggml_tensor *> svg_attn_biases;
+    std::vector<ggml_tensor *> svg_mlp_weights;
+    std::vector<ggml_tensor *> svg_mlp_biases;
+    std::vector<ggml_tensor *> svg_ln_weights;
+    std::vector<ggml_tensor *> svg_ln_biases;
+    ggml_tensor *svg_wte = nullptr;
+    ggml_tensor *svg_wpe = nullptr;
+    ggml_tensor *svg_ln_f_weight = nullptr;
+    ggml_tensor *svg_ln_f_bias = nullptr;
+
+    // Image encoder (ResNet/ViT)
+    ggml_tensor *img_class_embedding = nullptr;
+    ggml_tensor *img_conv1_weight = nullptr;
+    std::vector<ggml_tensor *> img_resblock_attn_weights;
+    std::vector<ggml_tensor *> img_resblock_mlp_weights;
+    std::vector<ggml_tensor *> img_resblock_ln_weights;
+    ggml_tensor *img_ln_pre_weight = nullptr;
+    ggml_tensor *img_ln_vision_weight = nullptr;
+    ggml_tensor *img_positional_embedding = nullptr;
+
+    // Image projection (адаптер)
+    ggml_tensor *proj_c_fc_weight = nullptr;
+    ggml_tensor *proj_c_proj_weight = nullptr;
+    ggml_tensor *proj_norm_weight = nullptr;
+    ggml_tensor *proj_norm_running_mean = nullptr;
+    ggml_tensor *proj_norm_running_var = nullptr;
+    ggml_tensor *proj_norm_num_batches_tracked = nullptr;
+};

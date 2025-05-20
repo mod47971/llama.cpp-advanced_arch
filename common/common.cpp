@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <stack>
 
 #if defined(__APPLE__) && defined(__MACH__)
 #include <sys/types.h>
@@ -1604,4 +1605,65 @@ ggml_opt_dataset_t common_opt_dataset_init(struct llama_context * ctx, const std
     }
 
     return result;
+}
+
+std::string svg_validate_and_format(const std::string & svg, bool & is_valid) {
+    is_valid = false;
+    std::string s = svg;
+    // 1. Трим пробелы
+    s = string_strip(s);
+    // 2. Проверка на <svg ...> ... </svg>
+    if (s.size() < 10 || s.find("<svg") != 0 || s.rfind("</svg>") == std::string::npos) {
+        return s;
+    }
+    // 3. Проверка на запрещённые символы (упрощённо)
+    if (s.find("<script") != std::string::npos || s.find("<!ENTITY") != std::string::npos) {
+        return s;
+    }
+    // 4. Примитивная проверка вложенности тегов (stack)
+    std::stack<std::string> tags;
+    std::regex tag_re(R"(<\/?([a-zA-Z0-9:_\-]+)[^>]*>)");
+    auto it = std::sregex_iterator(s.begin(), s.end(), tag_re);
+    auto end = std::sregex_iterator();
+    for (; it != end; ++it) {
+        std::string tag = (*it)[1];
+        bool closing = (*it).str()[1] == '/';
+        if (!closing && tag != "br" && tag != "hr" && tag != "img" && tag != "input" && tag != "meta" && tag != "link") {
+            tags.push(tag);
+        } else if (closing) {
+            if (tags.empty() || tags.top() != tag) {
+                return s;
+            }
+            tags.pop();
+        }
+    }
+    if (!tags.empty()) {
+        return s;
+    }
+    is_valid = true;
+    // 5. Форматирование (pretty print)
+    std::string formatted;
+    int indent = 0;
+    bool new_line = true;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '<') {
+            if (i > 0 && s[i-1] != '\n') formatted += '\n';
+            if (s[i+1] == '/') indent = std::max(0, indent-2);
+            formatted += std::string(indent, ' ');
+            formatted += '<';
+            continue;
+        }
+        if (s[i] == '>') {
+            formatted += '>';
+            if (i+1 < s.size() && s[i+1] != '<') formatted += '\n' + std::string(indent, ' ');
+            if (i > 0 && s[i-1] == '/') indent = std::max(0, indent-2);
+            else if (i > 0 && s[i-1] != '/' && s[i-1] != '?') indent += 2;
+            continue;
+        }
+        formatted += s[i];
+    }
+    // Удалить лишние пустые строки
+    std::regex empty_line_re("^\s*\n", std::regex_constants::multiline);
+    formatted = std::regex_replace(formatted, empty_line_re, "");
+    return formatted;
 }

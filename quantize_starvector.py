@@ -24,8 +24,8 @@ def quantize_model(llama_cpp_dir, model_dir, output_dir, quantization_types):
     # convert.py создает файл .gguf, который затем можно квантизовать далее.
     # Используем f16 в качестве промежуточного формата для сохранения точности перед квантизацией.
     intermediate_gguf = os.path.join(output_dir, "model_f16.gguf")
-    # Исправлено: Путь к скрипту конвертации теперь указывает на llama.cpp/convert_hf_to_gguf.py
-    convert_script = os.path.abspath(os.path.join('llama.cpp', 'convert_hf_to_gguf.py'))
+    # Исправлено: Путь к скрипту конвертации теперь указывает на convert_hf_to_gguf.py в текущей директории llama.cpp
+    convert_script = os.path.abspath(os.path.join(os.path.dirname(__file__), 'convert_hf_to_gguf.py'))
 
     if not os.path.exists(convert_script):
         print(f"Ошибка: Скрипт конвертации не найден: {convert_script}")

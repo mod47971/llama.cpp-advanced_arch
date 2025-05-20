@@ -77,6 +77,7 @@ enum llm_arch {
     LLM_ARCH_PLM,
     LLM_ARCH_BAILINGMOE,
     LLM_ARCH_UNKNOWN,
+    LLM_ARCH_STARVECTOR,
 };
 
 enum llm_kv {

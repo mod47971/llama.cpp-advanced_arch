@@ -185,6 +185,15 @@ static int generate_response(mtmd_cli_context & ctx, common_sampler * smpl, int 
             return 1;
         }
     }
+    // --- SVG post-processing ---
+    std::string svg_code = common_detokenize(ctx.lctx, generated_tokens, true);
+    bool is_valid_svg = false;
+    std::string pretty_svg = svg_validate_and_format(svg_code, is_valid_svg);
+    LOG("\n\n--- SVG (post-processed) ---\n");
+    printf("%s\n", pretty_svg.c_str());
+    if (!is_valid_svg) {
+        LOG_ERR("[WARN] SVG-код не прошёл валидацию! Проверьте результат.\n");
+    }
     return 0;
 }
 

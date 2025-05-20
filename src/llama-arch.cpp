@@ -73,6 +73,7 @@ static const std::map<llm_arch, const char *> LLM_ARCH_NAMES = {
     { LLM_ARCH_PLM,              "plm"              },
     { LLM_ARCH_BAILINGMOE,       "bailingmoe"       },
     { LLM_ARCH_UNKNOWN,          "(unknown)"        },
+    { LLM_ARCH_STARVECTOR,       "starvector"       },
 };
 
 static const std::map<llm_kv, const char *> LLM_KV_NAMES = {
@@ -1557,6 +1558,41 @@ static const std::map<llm_arch, std::map<llm_tensor, const char *>> LLM_TENSOR_N
         LLM_ARCH_UNKNOWN,
         {
             { LLM_TENSOR_TOKEN_EMBD,      "token_embd" },
+        },
+    },
+    {
+        LLM_ARCH_STARVECTOR,
+        {
+            // SVG-трансформер (GPT-подобный)
+            { LLM_TENSOR_TOKEN_EMBD,      "model.svg_transformer.transformer.transformer.wte.weight" },
+            { LLM_TENSOR_POS_EMBD,        "model.svg_transformer.transformer.transformer.wpe.weight" },
+            { LLM_TENSOR_OUTPUT_NORM,     "model.svg_transformer.transformer.transformer.ln_f.weight" },
+            { LLM_TENSOR_OUTPUT,          "model.svg_transformer.transformer.transformer.ln_f.bias" },
+            { LLM_TENSOR_ATTN_NORM,       "model.svg_transformer.transformer.transformer.h.%d.ln_1.weight" },
+            { LLM_TENSOR_ATTN_Q,          "model.svg_transformer.transformer.transformer.h.%d.attn.c_attn.weight" },
+            { LLM_TENSOR_ATTN_K,          "model.svg_transformer.transformer.transformer.h.%d.attn.c_attn.weight" },
+            { LLM_TENSOR_ATTN_V,          "model.svg_transformer.transformer.transformer.h.%d.attn.c_attn.weight" },
+            { LLM_TENSOR_ATTN_OUT,        "model.svg_transformer.transformer.transformer.h.%d.attn.c_proj.weight" },
+            { LLM_TENSOR_FFN_NORM,        "model.svg_transformer.transformer.transformer.h.%d.ln_2.weight" },
+            { LLM_TENSOR_FFN_GATE,        "model.svg_transformer.transformer.transformer.h.%d.mlp.c_fc.weight" },
+            { LLM_TENSOR_FFN_UP,          "model.svg_transformer.transformer.transformer.h.%d.mlp.c_fc.weight" },
+            { LLM_TENSOR_FFN_DOWN,        "model.svg_transformer.transformer.transformer.h.%d.mlp.c_proj.weight" },
+            // Vision encoder (ResNet/ViT)
+            { LLM_TENSOR_CLS,             "model.image_encoder.visual_encoder.class_embedding" },
+            { LLM_TENSOR_CONV1D,          "model.image_encoder.visual_encoder.conv1.weight" },
+            { LLM_TENSOR_ATTN_NORM_2,     "model.image_encoder.visual_encoder.ln_pre.weight" },
+            { LLM_TENSOR_ATTN_NORM,       "model.image_encoder.visual_encoder.transformer.resblocks.%d.ln_1.weight" },
+            { LLM_TENSOR_FFN_NORM,        "model.image_encoder.visual_encoder.transformer.resblocks.%d.ln_2.weight" },
+            { LLM_TENSOR_ATTN_Q,          "model.image_encoder.visual_encoder.transformer.resblocks.%d.attn.in_proj_weight" },
+            { LLM_TENSOR_ATTN_OUT,        "model.image_encoder.visual_encoder.transformer.resblocks.%d.attn.out_proj.weight" },
+            { LLM_TENSOR_FFN_GATE,        "model.image_encoder.visual_encoder.transformer.resblocks.%d.mlp.c_fc.weight" },
+            { LLM_TENSOR_FFN_DOWN,        "model.image_encoder.visual_encoder.transformer.resblocks.%d.mlp.c_proj.weight" },
+            { LLM_TENSOR_FFN_UP,          "model.image_encoder.visual_encoder.transformer.resblocks.%d.mlp.c_fc.weight" },
+            { LLM_TENSOR_OUTPUT_NORM,     "model.image_encoder.ln_vision.weight" },
+            // Image projection (адаптер)
+            { LLM_TENSOR_FFN_GATE_INP,    "model.image_projection.c_fc.weight" },
+            { LLM_TENSOR_FFN_GATE,        "model.image_projection.c_proj.weight" },
+            { LLM_TENSOR_FFN_NORM,        "model.image_projection.norm.weight" },
         },
     },
 };
