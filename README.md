@@ -7,5 +7,5 @@ Which is already supported:
 |  | Starvector-1b          |Starvector-8b           |
 | --- | --- | --- |
 |  Quantization     | ✅ | ❌ |
-|  Inference     | ? | ❌ |
+|  Inference     | ? (I haven't tested it yet, but theoretically it should work)| ❌ |
 
