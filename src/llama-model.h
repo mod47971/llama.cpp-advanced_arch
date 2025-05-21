@@ -360,6 +360,9 @@ struct llama_model {
     // list of devices used in this model
     std::vector<ggml_backend_dev_t> devices;
 
+    // Добавляю хранение структуры StarVector для мультимодального режима
+    std::unique_ptr<starvector_model> starvector;
+
     // for quantize-stats only
     std::vector<std::pair<std::string, struct ggml_tensor *>> tensors_by_name;
 
@@ -456,3 +459,10 @@ struct starvector_model {
     ggml_tensor *proj_norm_running_var = nullptr;
     ggml_tensor *proj_norm_num_batches_tracked = nullptr;
 };
+
+// === НАЧАЛО: Инференс STARVECTOR ===
+struct llm_build_starvector : public llm_graph_context {
+    int mode; // 0 — text2svg, 1 — image2svg
+    llm_build_starvector(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf, int mode = 0);
+};
+// === КОНЕЦ: Инференс STARVECTOR ===

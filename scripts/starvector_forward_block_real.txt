@@ -1,0 +1,59 @@
+// === НАЧАЛО: Инференс STARVECTOR ===
+llm_build_starvector::llm_build_starvector(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf, int mode)
+    : llm_graph_context(params), mode(mode) {
+    const auto *sv = model.starvector.get();
+    ggml_tensor * cur = nullptr;
+    if (!sv) {
+        throw std::runtime_error("starvector_model не инициализирована");
+    }
+    if (mode == 0) {
+        // === text2svg: SVG-трансформер ===
+        cur = ggml_get_rows(ctx0, sv->svg_wte, params.inpL); // эмбеддинг токенов
+        ggml_tensor * pos = ggml_get_rows(ctx0, sv->svg_wpe, params.inp_pos); // позиционные эмбеддинги
+        cur = ggml_add(ctx0, cur, pos);
+        int n_layers = (int)sv->svg_attn_weights.size();
+        for (int il = 0; il < n_layers; ++il) {
+            // Attention (QKV, matmul, softmax, output)
+            ggml_tensor * attn = ggml_mul_mat(ctx0, sv->svg_attn_weights[il], cur);
+            attn = ggml_add(ctx0, attn, sv->svg_attn_biases[il]);
+            attn = ggml_soft_max(ctx0, attn);
+            cur = ggml_add(ctx0, cur, attn); // residual
+            // MLP (linear + bias + activation)
+            ggml_tensor * mlp = ggml_mul_mat(ctx0, sv->svg_mlp_weights[il], cur);
+            mlp = ggml_add(ctx0, mlp, sv->svg_mlp_biases[il]);
+            mlp = ggml_gelu(ctx0, mlp);
+            cur = ggml_add(ctx0, cur, mlp); // residual
+            // LayerNorm
+            cur = ggml_norm(ctx0, cur, sv->svg_ln_weights[il], sv->svg_ln_biases[il]);
+        }
+        // Финальный layer norm
+        cur = ggml_norm(ctx0, cur, sv->svg_ln_f_weight, sv->svg_ln_f_bias);
+    } else {
+        // === image2svg: vision encoder + SVG-трансформер ===
+        // 1. Вход: изображение (params.image_tensor или аналогичный)
+        // TODO: реализовать vision encoder (ResNet/ViT) через ggml
+        // ggml_tensor * img_features = ggml_vision_encoder(ctx0, sv, params.image_tensor);
+        // 2. Проекция признаков изображения в пространство SVG-трансформера
+        // cur = ggml_mul_mat(ctx0, sv->proj_c_fc_weight, img_features);
+        // 3. LayerNorm (если есть)
+        // cur = ggml_norm(ctx0, cur, sv->proj_norm_weight, nullptr);
+        // 4. Далее — как в text2svg: цикл по слоям SVG-трансформера
+        int n_layers = (int)sv->svg_attn_weights.size();
+        for (int il = 0; il < n_layers; ++il) {
+            ggml_tensor * attn = ggml_mul_mat(ctx0, sv->svg_attn_weights[il], cur);
+            attn = ggml_add(ctx0, attn, sv->svg_attn_biases[il]);
+            attn = ggml_soft_max(ctx0, attn);
+            cur = ggml_add(ctx0, cur, attn);
+            ggml_tensor * mlp = ggml_mul_mat(ctx0, sv->svg_mlp_weights[il], cur);
+            mlp = ggml_add(ctx0, mlp, sv->svg_mlp_biases[il]);
+            mlp = ggml_gelu(ctx0, mlp);
+            cur = ggml_add(ctx0, cur, mlp);
+            cur = ggml_norm(ctx0, cur, sv->svg_ln_weights[il], sv->svg_ln_biases[il]);
+        }
+        cur = ggml_norm(ctx0, cur, sv->svg_ln_f_weight, sv->svg_ln_f_bias);
+    }
+    // Сохраняем результат
+    res->t_logits = cur;
+    ggml_build_forward_expand(gf, cur);
+}
+// === КОНЕЦ: Инференс STARVECTOR ===

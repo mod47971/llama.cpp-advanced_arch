@@ -1,0 +1,36 @@
+// === НАЧАЛО: Инференс STARVECTOR ===
+llm_build_starvector::llm_build_starvector(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf, int mode)
+    : llm_graph_context(params), mode(mode) {
+    // Получаем доступ к структуре весов STARVECTOR
+    const auto *sv = model.starvector.get();
+    ggml_tensor * cur = nullptr;
+
+    if (!sv) {
+        throw std::runtime_error("starvector_model не инициализирована");
+    }
+
+    if (mode == 0) {
+        // === text2svg: SVG-трансформер ===
+        cur = ggml_get_rows(ctx0, sv->svg_wte, params.inpL); // эмбеддинг токенов
+        ggml_tensor * pos = ggml_get_rows(ctx0, sv->svg_wpe, params.inp_pos); // позиционные эмбеддинги
+        cur = ggml_add(ctx0, cur, pos);
+        // TODO: количество слоёв SVG-трансформера (например, sv->svg_attn_weights.size())
+        // for (int il = 0; il < n_layers; ++il) {
+        //     // Attention
+        //     cur = ggml_attention(ctx0, cur, sv->svg_attn_weights[il], sv->svg_attn_biases[il]);
+        //     // MLP
+        //     cur = ggml_mlp(ctx0, cur, sv->svg_mlp_weights[il], sv->svg_mlp_biases[il]);
+        //     // LayerNorm
+        //     cur = ggml_layer_norm(ctx0, cur, sv->svg_ln_weights[il], sv->svg_ln_biases[il]);
+        // }
+        // Финальный layer norm
+        // cur = ggml_layer_norm(ctx0, cur, sv->svg_ln_f_weight, sv->svg_ln_f_bias);
+    } else {
+        // === image2svg: vision encoder + SVG-трансформер ===
+        // TODO: реализовать vision encoder и интеграцию с SVG-трансформером
+    }
+    // Сохраняем результат
+    // res->t_logits = cur;
+    // ggml_build_forward_expand(gf, cur);
+}
+// === КОНЕЦ: Инференс STARVECTOR ===

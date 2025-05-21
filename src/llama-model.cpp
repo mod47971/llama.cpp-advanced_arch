@@ -5407,7 +5407,6 @@ struct llm_build_grok : public llm_graph_context {
                     LLM_NORM_RMS, il);
             cb(cur, "attn_norm", il);
 
-
             // self-attention
             {
                 // compute Q and K and RoPE them
@@ -10190,7 +10189,6 @@ struct llm_build_deepseek : public llm_graph_context {
                 inpSA = ggml_get_rows(ctx0, inpSA, inp_out_ids);
             }
 
-
             ggml_tensor * ffn_inp = ggml_add(ctx0, cur, inpSA);
             cb(ffn_inp, "ffn_inp", il);
 
@@ -12259,7 +12257,6 @@ struct llm_build_rwkv7 : public llm_build_rwkv7_base {
     }
 };
 
-
 struct llm_build_arwkv7 : public llm_build_rwkv7_base {
     llm_build_arwkv7(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf) : llm_build_rwkv7_base(model, params) {
         GGML_ASSERT(n_embd == hparams.n_embd_k_s());
@@ -12347,7 +12344,6 @@ struct llm_build_arwkv7 : public llm_build_rwkv7_base {
         ggml_build_forward_expand(gf, cur);
     }
 };
-
 
 struct llm_build_granite : public llm_graph_context {
     llm_build_granite(
@@ -13381,6 +13377,58 @@ llm_graph_result_ptr llama_model::build_graph(
         case LLM_ARCH_STARCODER2:
             {
                 llm = std::make_unique<llm_build_starcoder2>(*this, params, gf);
+
+// === НАЧАЛО: Инференс STARVECTOR ===
+llm_build_starvector::llm_build_starvector(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf, int mode)
+    : llm_graph_context(params), mode(mode) {
+    const auto *sv = model.starvector.get();
+    ggml_tensor * cur = nullptr;
+    if (!sv) {
+        throw std::runtime_error("starvector_model не инициализирована");
+    }
+    if (mode == 0) {
+        // === text2svg: SVG-трансформер ===
+        cur = ggml_get_rows(ctx0, sv->svg_wte, params.inpL); // эмбеддинг токенов
+        ggml_tensor * pos = ggml_get_rows(ctx0, sv->svg_wpe, params.inp_pos); // позиционные эмбеддинги
+        cur = ggml_add(ctx0, cur, pos);
+        int n_layers = (int)sv->svg_attn_weights.size();
+        for (int il = 0; il < n_layers; ++il) {
+            ggml_tensor * attn = ggml_mul_mat(ctx0, sv->svg_attn_weights[il], cur);
+            attn = ggml_add(ctx0, attn, sv->svg_attn_biases[il]);
+            attn = ggml_soft_max(ctx0, attn);
+            cur = ggml_add(ctx0, cur, attn);
+            ggml_tensor * mlp = ggml_mul_mat(ctx0, sv->svg_mlp_weights[il], cur);
+            mlp = ggml_add(ctx0, mlp, sv->svg_mlp_biases[il]);
+            mlp = ggml_gelu(ctx0, mlp);
+            cur = ggml_add(ctx0, cur, mlp);
+            cur = ggml_norm(ctx0, cur, sv->svg_ln_weights[il], sv->svg_ln_biases[il]);
+        }
+        cur = ggml_norm(ctx0, cur, sv->svg_ln_f_weight, sv->svg_ln_f_bias);
+    } else {
+        // === image2svg: vision encoder + SVG-трансформер ===
+        ggml_tensor * img_features = ggml_vision_encoder(ctx0, sv, params.image_tensor);
+        cur = ggml_mul_mat(ctx0, sv->proj_c_fc_weight, img_features);
+        if (sv->proj_norm_weight)
+            cur = ggml_norm(ctx0, cur, sv->proj_norm_weight, nullptr);
+        int n_layers = (int)sv->svg_attn_weights.size();
+        for (int il = 0; il < n_layers; ++il) {
+            ggml_tensor * attn = ggml_mul_mat(ctx0, sv->svg_attn_weights[il], cur);
+            attn = ggml_add(ctx0, attn, sv->svg_attn_biases[il]);
+            attn = ggml_soft_max(ctx0, attn);
+            cur = ggml_add(ctx0, cur, attn);
+            ggml_tensor * mlp = ggml_mul_mat(ctx0, sv->svg_mlp_weights[il], cur);
+            mlp = ggml_add(ctx0, mlp, sv->svg_mlp_biases[il]);
+            mlp = ggml_gelu(ctx0, mlp);
+            cur = ggml_add(ctx0, cur, mlp);
+            cur = ggml_norm(ctx0, cur, sv->svg_ln_weights[il], sv->svg_ln_biases[il]);
+        }
+        cur = ggml_norm(ctx0, cur, sv->svg_ln_f_weight, sv->svg_ln_f_bias);
+    }
+    res->t_logits = cur;
+    ggml_build_forward_expand(gf, cur);
+}
+// === КОНЕЦ: Инференс STARVECTOR ===
+
             } break;
         case LLM_ARCH_MAMBA:
             {
@@ -13456,6 +13504,8 @@ llm_graph_result_ptr llama_model::build_graph(
                     case LLM_GRAPH_TYPE_DECODER:
                         llm = std::make_unique<llm_build_t5_dec>(*this, params, gf);
                         break;
+        case LLM_ARCH_STARVECTOR:
+        return std::make_shared<llm_build_starvector>(*this, params, gf, /*mode=*/0); // TODO: передавать режим через параметры
                     default:
                         GGML_ABORT("invalid graph type");
                 };
