@@ -1,0 +1,3 @@
+llm = std::make_unique<llm_build_starvector>(*this, params, gf, params.mode)llm->build_pooling(gf, cls, cls_b, cls_out, cls_out_b);
+llm->build_pooling(gf, cls, cls_b, cls_out, cls_out_b);
+return std::move(llm->res);

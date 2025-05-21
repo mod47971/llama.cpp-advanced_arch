@@ -1663,7 +1663,7 @@ std::string svg_validate_and_format(const std::string & svg, bool & is_valid) {
         formatted += s[i];
     }
     // Удалить лишние пустые строки
-    std::regex empty_line_re("^\s*\n", std::regex_constants::multiline);
+    std::regex empty_line_re("^\s*\n", std::regex_constants::ECMAScript);
     formatted = std::regex_replace(formatted, empty_line_re, "");
     return formatted;
 }

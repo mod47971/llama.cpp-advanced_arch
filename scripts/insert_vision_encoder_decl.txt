@@ -1,3 +1,1 @@
-// === НАЧАЛО: Vision Encoder STARVECTOR ===
 ggml_tensor * ggml_vision_encoder(ggml_context * ctx0, const starvector_model *sv, ggml_tensor * image_tensor);
-// === КОНЕЦ: Vision Encoder STARVECTOR ===

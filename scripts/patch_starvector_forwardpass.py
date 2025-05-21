@@ -2,6 +2,7 @@ import os
 import re
 
 TARGET = os.path.join(os.path.dirname(__file__), '../src/llama-model.cpp')
+HEADER = os.path.join(os.path.dirname(__file__), '../src/llama-model.h')
 
 # Новый forward-pass-каркас
 starvector_impl = '''
@@ -48,11 +49,36 @@ llm_build_starvector::llm_build_starvector(const llama_model & model, const llm_
 // === КОНЕЦ: Инференс STARVECTOR ===
 '''
 
+def check_brace_balance(code):
+    stack = []
+    for i, c in enumerate(code):
+        if c == '{':
+            stack.append(i)
+        elif c == '}':
+            if stack:
+                stack.pop()
+            else:
+                return False, i  # Лишняя }
+    return len(stack) == 0, (stack[-1] if stack else -1)
+
 def patch_and_lint_llama_model_cpp():
+    # --- Патч .cpp ---
     with open(TARGET, 'r', encoding='utf-8') as f:
         code = f.read()
 
-    # Заменить существующую реализацию llm_build_starvector
+    # Исправление: закрываем case LLM_ARCH_T5, если нет } break;
+    def fix_t5_case_block(code):
+        pattern = re.compile(r'(case LLM_ARCH_T5:[\s\S]*?switch \(type\) \{[\s\S]*?)(?=case LLM_ARCH_STARVECTOR:|case LLM_ARCH_|default:)', re.MULTILINE)
+        def repl(m):
+            block = m.group(1)
+            # Если нет '} break;' в конце блока, добавляем
+            if not re.search(r'\}\s*break;\s*$', block):
+                return block + '\n        } break;\n'
+            return block
+        return pattern.sub(repl, code)
+
+    code = fix_t5_case_block(code)
+
     code, n = re.subn(
         r'// === НАЧАЛО: Инференс STARVECTOR ===.*?// === КОНЕЦ: Инференс STARVECTOR ===',
         starvector_impl,
@@ -60,19 +86,51 @@ def patch_and_lint_llama_model_cpp():
         flags=re.DOTALL
     )
     if n == 0:
-        # Если не найдено — просто вставить перед default: в build_graph
         idx = code.find('default:')
         if idx != -1:
             code = code[:idx] + starvector_impl + '\n' + code[idx:]
 
-    # Базовая авто-правка форматирования (убрать двойные пустые строки)
+    code = re.sub(
+        r'case LLM_ARCH_STARVECTOR:[\s\S]*?break;',
+        'case LLM_ARCH_STARVECTOR:\n            {\n                llm = std::make_unique<llm_build_starvector>(*this, params, gf, 0);\n            } break;',
+        code,
+        flags=re.MULTILINE
+    )
+    code = re.sub(r'^\s*llm = std::make_unique<llm_build_starvector>\([^\n]+\);\s*$', '', code, flags=re.MULTILINE)
+    code = re.sub(r'case LLM_ARCH_STARVECTOR:\n\s*{\s*}\s*break;', 'case LLM_ARCH_STARVECTOR:\n            {\n                llm = std::make_unique<llm_build_starvector>(*this, params, gf, 0);\n            } break;', code)
     code = re.sub(r'\n{3,}', '\n\n', code)
-    # Исправить отступы для case LLM_ARCH_STARVECTOR (если нужно)
-    code = re.sub(r'(case LLM_ARCH_STARVECTOR:[^\n]*\n)([ \t]*)return', r'\1        return', code)
+
+    # Проверка баланса фигурных скобок
+    ok, pos = check_brace_balance(code)
+    if not ok:
+        if pos != -1 and code[pos] == '{':
+            # Добавить закрывающую скобку в конец файла
+            code += '\n}'
+            print('ВНИМАНИЕ: Добавлена закрывающая фигурная скобка в конец файла!')
+        else:
+            # Удалить лишнюю закрывающую скобку
+            code = code[:pos] + code[pos+1:]
+            print('ВНИМАНИЕ: Удалена лишняя закрывающая фигурная скобка!')
+        # Повторная проверка
+        ok2, _ = check_brace_balance(code)
+        if not ok2:
+            print('ОШИБКА: Баланс фигурных скобок не удалось восстановить!')
 
     with open(TARGET, 'w', encoding='utf-8') as f:
         f.write(code)
 
+    # --- Патч .h ---
+    with open(HEADER, 'r', encoding='utf-8') as f:
+        hcode = f.read()
+    # Заменяю наследование
+    hcode = re.sub(
+        r'struct llm_build_starvector\s*:\s*public\s*llm_graph_result_i',
+        'struct llm_build_starvector : public llm_graph_context',
+        hcode
+    )
+    with open(HEADER, 'w', encoding='utf-8') as f:
+        f.write(hcode)
+
 if __name__ == '__main__':
     patch_and_lint_llama_model_cpp()
-    print('Патч STARVECTOR (forward-pass) и авто-линт успешно применены!')
+    print('Патч STARVECTOR (баланс фигурных скобок, закрытие блока T5, наследование от llm_graph_context, forward-pass, build_graph, чистка скобок) и авто-линт успешно применены!')

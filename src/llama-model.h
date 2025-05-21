@@ -14,6 +14,40 @@
 
 struct llama_cparams;
 struct llama_ubatch;
+// === НАЧАЛО: Структура STARVECTOR_MODEL ===
+struct starvector_model {
+    // SVG-трансформер
+    std::vector<ggml_tensor *> svg_attn_weights;
+    std::vector<ggml_tensor *> svg_attn_biases;
+    std::vector<ggml_tensor *> svg_mlp_weights;
+    std::vector<ggml_tensor *> svg_mlp_biases;
+    std::vector<ggml_tensor *> svg_ln_weights;
+    std::vector<ggml_tensor *> svg_ln_biases;
+    ggml_tensor *svg_wte = nullptr;
+    ggml_tensor *svg_wpe = nullptr;
+    ggml_tensor *svg_ln_f_weight = nullptr;
+    ggml_tensor *svg_ln_f_bias = nullptr;
+
+    // Image encoder (ResNet/ViT)
+    ggml_tensor *img_class_embedding = nullptr;
+    ggml_tensor *img_conv1_weight = nullptr;
+    std::vector<ggml_tensor *> img_resblock_attn_weights;
+    std::vector<ggml_tensor *> img_resblock_mlp_weights;
+    std::vector<ggml_tensor *> img_resblock_ln_weights;
+    ggml_tensor *img_ln_pre_weight = nullptr;
+    ggml_tensor *img_ln_vision_weight = nullptr;
+    ggml_tensor *img_positional_embedding = nullptr;
+
+    // Image projection (адаптер)
+    ggml_tensor *proj_c_fc_weight = nullptr;
+    ggml_tensor *proj_c_proj_weight = nullptr;
+    ggml_tensor *proj_norm_weight = nullptr;
+    ggml_tensor *proj_norm_running_mean = nullptr;
+    ggml_tensor *proj_norm_running_var = nullptr;
+    ggml_tensor *proj_norm_num_batches_tracked = nullptr;
+};
+// === КОНЕЦ: Структура STARVECTOR_MODEL ===
+
 struct llama_model_loader;
 
 // available models
@@ -427,42 +461,18 @@ const char * llm_type_name(llm_type type);
 // TODO: remove
 const std::vector<std::pair<std::string, ggml_tensor *>> & llama_internal_get_tensor_map(const llama_model * model);
 
-// Структура для StarVector
-struct starvector_model {
-    // SVG-трансформер
-    std::vector<ggml_tensor *> svg_attn_weights;
-    std::vector<ggml_tensor *> svg_attn_biases;
-    std::vector<ggml_tensor *> svg_mlp_weights;
-    std::vector<ggml_tensor *> svg_mlp_biases;
-    std::vector<ggml_tensor *> svg_ln_weights;
-    std::vector<ggml_tensor *> svg_ln_biases;
-    ggml_tensor *svg_wte = nullptr;
-    ggml_tensor *svg_wpe = nullptr;
-    ggml_tensor *svg_ln_f_weight = nullptr;
-    ggml_tensor *svg_ln_f_bias = nullptr;
+// === НАЧАЛО: Vision Encoder STARVECTOR ===
+ggml_tensor * ggml_vision_encoder(ggml_context * ctx0, const starvector_model *sv, ggml_tensor * image_tensor);
+// === КОНЕЦ: Vision Encoder STARVECTOR ===
 
-    // Image encoder (ResNet/ViT)
-    ggml_tensor *img_class_embedding = nullptr;
-    ggml_tensor *img_conv1_weight = nullptr;
-    std::vector<ggml_tensor *> img_resblock_attn_weights;
-    std::vector<ggml_tensor *> img_resblock_mlp_weights;
-    std::vector<ggml_tensor *> img_resblock_ln_weights;
-    ggml_tensor *img_ln_pre_weight = nullptr;
-    ggml_tensor *img_ln_vision_weight = nullptr;
-    ggml_tensor *img_positional_embedding = nullptr;
-
-    // Image projection (адаптер)
-    ggml_tensor *proj_c_fc_weight = nullptr;
-    ggml_tensor *proj_c_proj_weight = nullptr;
-    ggml_tensor *proj_norm_weight = nullptr;
-    ggml_tensor *proj_norm_running_mean = nullptr;
-    ggml_tensor *proj_norm_running_var = nullptr;
-    ggml_tensor *proj_norm_num_batches_tracked = nullptr;
-};
-
-// === НАЧАЛО: Инференс STARVECTOR ===
 struct llm_build_starvector : public llm_graph_context {
     int mode; // 0 — text2svg, 1 — image2svg
     llm_build_starvector(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf, int mode = 0);
 };
+ggml_tensor * ggml_vision_encoder(ggml_context * ctx0, const starvector_model *sv, ggml_tensor * image_tensor);
+
+// === НАЧАЛО: Vision Encoder STARVECTOR ===
+ggml_tensor * ggml_vision_encoder(ggml_context * ctx0, const starvector_model *sv, ggml_tensor * image_tensor);
+// === КОНЕЦ: Vision Encoder STARVECTOR ===
+
 // === КОНЕЦ: Инференс STARVECTOR ===

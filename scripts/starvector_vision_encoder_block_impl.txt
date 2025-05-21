@@ -1,0 +1,52 @@
+// === НАЧАЛО: Vision Encoder STARVECTOR ===
+ggml_tensor * ggml_vision_encoder(ggml_context * ctx0, const starvector_model *sv, ggml_tensor * image_tensor) {
+    ggml_tensor * cur = image_tensor;
+    const float eps = 1e-5f;
+
+    // 1. Conv1
+    if (sv->img_conv1_weight)
+        cur = ggml_mul_mat(ctx0, sv->img_conv1_weight, cur);
+
+    // 2. Добавить positional embedding, если есть
+    if (sv->img_positional_embedding)
+        cur = ggml_add(ctx0, cur, sv->img_positional_embedding);
+
+    // 3. LayerNorm pre
+    if (sv->img_ln_pre_weight) {
+        cur = ggml_norm(ctx0, cur, eps);
+        cur = ggml_mul(ctx0, cur, sv->img_ln_pre_weight);
+    }
+
+    // 4. Проход по resblock'ам (attention + MLP + LN)
+    int n_resblocks = (int)sv->img_resblock_attn_weights.size();
+    for (int il = 0; il < n_resblocks; ++il) {
+        // Attention (ViT-style self-attention)
+        ggml_tensor * attn = ggml_mul_mat(ctx0, sv->img_resblock_attn_weights[il], cur);
+        attn = ggml_soft_max(ctx0, attn);
+        cur = ggml_add(ctx0, cur, attn); // residual
+
+        // MLP
+        ggml_tensor * mlp = ggml_mul_mat(ctx0, sv->img_resblock_mlp_weights[il], cur);
+        mlp = ggml_gelu(ctx0, mlp);
+        cur = ggml_add(ctx0, cur, mlp); // residual
+
+        // LayerNorm
+        if (il < (int)sv->img_resblock_ln_weights.size() && sv->img_resblock_ln_weights[il]) {
+            cur = ggml_norm(ctx0, cur, eps);
+            cur = ggml_mul(ctx0, cur, sv->img_resblock_ln_weights[il]);
+        }
+    }
+
+    // 5. Класс-эмбеддинг (ViT-style)
+    if (sv->img_class_embedding)
+        cur = ggml_add(ctx0, cur, sv->img_class_embedding);
+
+    // 6. Финальный LayerNorm vision encoder
+    if (sv->img_ln_vision_weight) {
+        cur = ggml_norm(ctx0, cur, eps);
+        cur = ggml_mul(ctx0, cur, sv->img_ln_vision_weight);
+    }
+
+    return cur;
+}
+// === КОНЕЦ: Vision Encoder STARVECTOR ===

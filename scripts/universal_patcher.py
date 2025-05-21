@@ -8,6 +8,7 @@ python universal_patcher.py \
   --file llama.cpp/src/llama-model.cpp \
   --replace-block "// === НАЧАЛО: Инференс STARVECTOR ===" "// === КОНЕЦ: Инференс STARVECTOR ===" new_code.txt \
   --insert-before "default:" insert_code.txt \
+  --move-constructor-out llm_build_starvector \
   --lint
 """
 
@@ -53,12 +54,33 @@ def lint_code(code):
     code = re.sub(r'^(    )+', lambda m: ' ' * (len(m.group(0))), code, flags=re.MULTILINE)
     return code
 
+def move_constructor_out(code, class_name):
+    # Находит реализацию конструктора внутри функции и перемещает её в конец файла
+    # Пример сигнатуры: llm_build_starvector::llm_build_starvector(...)
+    pattern = re.compile(r'(// === НАЧАЛО: Инференс STARVECTOR ===\s*)(%s::%s\s*\([^\)]*\)\s*:[^\{]*\{.*?\n\s*\}// === КОНЕЦ: Инференс STARVECTOR ===)' % (class_name, class_name), re.DOTALL)
+    match = pattern.search(code)
+    if not match:
+        # fallback: ищем просто конструктор между двумя маркерами
+        pattern2 = re.compile(r'(// === НАЧАЛО: Инференс STARVECTOR ===)(.*?%s::%s\s*\([^\)]*\)\s*:[^\{]*\{.*?\n\s*\}// === КОНЕЦ: Инференс STARVECTOR ===)' % (class_name, class_name), re.DOTALL)
+        match = pattern2.search(code)
+    if match:
+        block = match.group(2)
+        # Удаляем из текущего места
+        code = code.replace(block, '')
+        # Вставляем в конец файла
+        code = code.rstrip() + '\n\n' + block.strip() + '\n'
+        print(f'Конструктор {class_name} перемещён в конец файла.')
+    else:
+        print(f'Конструктор {class_name} не найден для перемещения!')
+    return code
+
 def main():
     parser = argparse.ArgumentParser(description='Универсальный автопатчер для C/C++ файлов.')
     parser.add_argument('--file', required=True, help='Путь к целевому файлу')
     parser.add_argument('--replace-block', nargs=3, metavar=('START', 'END', 'BLOCK'), help='Заменить блок между маркерами на содержимое файла BLOCK')
     parser.add_argument('--insert-before', nargs=2, metavar=('BEFORE', 'BLOCK'), help='Вставить BLOCK перед строкой BEFORE')
     parser.add_argument('--insert-after', nargs=2, metavar=('AFTER', 'BLOCK'), help='Вставить BLOCK после строки AFTER')
+    parser.add_argument('--move-constructor-out', metavar='CLASS', help='Переместить реализацию конструктора CLASS в конец файла')
     parser.add_argument('--lint', action='store_true', help='Автоматически исправить базовые ошибки форматирования')
     args = parser.parse_args()
 
@@ -78,6 +100,9 @@ def main():
         after_str, block_path = args.insert_after
         insert_block = read_code(block_path)
         code = insert_after(code, after_str, insert_block)
+
+    if args.move_constructor_out:
+        code = move_constructor_out(code, args.move_constructor_out)
 
     if args.lint:
         code = lint_code(code)
